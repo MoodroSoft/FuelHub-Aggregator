@@ -112,8 +112,3 @@ make pytest test="api/test_auth.py::test_login_success_200"  # тест из ф�
 3. [Local Adminer](http://127.0.0.1:8000/adminer?pgsql=postgres&username=agai_local&db=agai_local&ns=public)
 
 4. [Local Flower](http://127.0.0.1:8000/flower/)
-
-
-## Полезные ссылки
-
-1. [Документация Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md)
