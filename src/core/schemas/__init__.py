@@ -1,0 +1,1 @@
+from core.schemas.base import OrmBaseModel

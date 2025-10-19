@@ -1,0 +1,1 @@
+"agai_local" "SCRAM-SHA-256$4096:f+vgoI01Yhx6KVl5hpqcew==$gM5actXNkQ+G5dUDQEN+8Qg+PGeJFPy7f0YZJHPswgI=:b3TglScx/jSesfWOjcABHncq3neGJJZfWBxMWUY7OD8="

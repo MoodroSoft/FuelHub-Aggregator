@@ -1,0 +1,23 @@
+[project]
+name = "fuelhub-aggregator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.17.0",
+    "asyncpg>=0.30.0",
+    "celery>=5.5.3",
+    "fastapi>=0.119.0",
+    "flower>=2.0.1",
+    "httpx>=0.28.1",
+    "nest-asyncio>=1.6.0",
+    "orjson>=3.11.3",
+    "pydantic-settings>=2.11.0",
+    "pytest>=8.4.2",
+    "pytest-parametrize-cases>=0.1.2",
+    "pytest-xdist>=3.8.0",
+    "redis>=6.4.0",
+    "sqlalchemy>=2.0.44",
+    "uvicorn>=0.38.0",
+]

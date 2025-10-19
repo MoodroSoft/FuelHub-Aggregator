@@ -1,0 +1,199 @@
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+  minio-data:
+    driver: local
+
+networks:
+  fha-network:
+
+services:
+  redis:
+    image: redis
+    container_name: redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    networks:
+      - fha-network
+      
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - fha-network
+    env_file:
+      - env-local.env
+
+  postgres:
+    image: postgres:15.2
+    container_name: postgres
+    command: >
+      -c logging_collector=on
+      -c log_destination=csvlog
+      -c shared_buffers=4GB
+      -c effective_cache_size=8GB
+      -c work_mem=32MB
+      -c maintenance_work_mem=1GB
+      -c max_connections=200
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c max_parallel_workers_per_gather=4
+      -c max_parallel_workers=8
+      -c max_worker_processes=12
+      -c wal_buffers=16MB
+      -c checkpoint_completion_target=0.9
+    restart: always
+    ports:
+      - "5431:5432"
+    env_file:
+      - env-local.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - fha-network
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    container_name: pgbouncer
+    restart: always
+    networks:
+      - fha-network
+    depends_on:
+      - postgres
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./config/pgbouncer/pgbouncer_conf.ini:/etc/pgbouncer/pgbouncer.ini
+      - ./config/pgbouncer/pgbouncer_users.txt:/etc/pgbouncer/userlist.txt
+
+  adminer:
+    image: adminer:4.8.1
+    container_name: adminer
+    restart: always
+    environment:
+      ADMINER_PLUGINS: dump-json json-column
+    depends_on:
+      - postgres
+    command: php -S 0.0.0.0:8002 -t /var/www/html
+    ports:
+      - "8022:8002"
+    networks:
+      - fha-network
+    volumes:
+      - ./config/adminer/adminer.css:/var/www/html/adminer.css
+    
+  # FastAPI app
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "8005:8005"
+    restart: unless-stopped
+    volumes:
+      - ./src:/var/www/app/src
+      - ./tests:/var/www/app/tests
+    command: uvicorn main:app --reload --reload-dir '../' --proxy-headers --forwarded-allow-ips=* --host 0.0.0.0 --port 8005
+    networks:
+      - fha-network
+    env_file:
+      - env-local.env
+
+  nginx:
+    container_name: nginx
+    image: nginx:1.21.6-alpine
+    restart: always
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./config/nginx/site.conf:/etc/nginx/conf.d/site.conf
+    networks:
+      - fha-network
+
+  # ################
+  # Celery workers #
+  # ################
+
+  celery_worker_high:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery_worker_high
+    command: celery -A tasks.app:celery_app worker -l info -Q high -n high
+    volumes:
+      - ./src:/var/www/app/src
+    env_file:
+      - env-local.env
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+      - postgres
+    networks:
+      - fha-network
+
+  celery_worker_low:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery_worker_low
+    command: celery -A tasks.app:celery_app worker -l info -Q low -n low
+    volumes:
+      - ./src:/var/www/app/src
+    env_file:
+      - env-local.env
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+      - postgres
+    networks:
+      - fha-network
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery_beat
+    command: celery -A tasks.app:celery_app beat -l info
+    volumes:
+      - ./src:/var/www/app/src
+    env_file:
+      - env-local.env
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+      - postgres
+    networks:
+      - fha-network
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flower
+    command: [ 'celery', 'flower' ]
+    ports:
+      - "5656:5656"
+    environment:
+      - CELERY_BROKER_URL=amqp://agai_local:agai_local@rabbitmq:5672//
+      - FLOWER_PORT=5656
+      - FLOWER_URL_PREFIX=flower
+    env_file:
+      - env-local.env
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+      - postgres
+      - celery_worker_high
+      - celery_worker_low
+    networks:
+      - fha-network

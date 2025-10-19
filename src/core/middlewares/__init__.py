@@ -1,0 +1,1 @@
+from core.middlewares.logging_middleware import LoggingMiddleware

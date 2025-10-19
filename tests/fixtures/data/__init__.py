@@ -1,0 +1,1 @@
+from .fixtures_fuel_types import *
